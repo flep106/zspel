@@ -1,0 +1,89 @@
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Modulo:			z_pr_close_rel_in.spl
+// Autor:			Felipe Vandrilho
+// Criado em:		26/12/2018
+// Modificado por:	Felipe Vandrilho
+// Modificado em:	02/01/2019
+// Descrição:		Arquivo que fecha os mudanças relacionados com o problema, quando o mesmo é fechado
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+chg::z_chg_close_rel_pr(...)
+{
+	string zs_method, zs_persistent_id, zs_type;
+	int zi, zi_debug, zi_list_count, zi_chgid;
+	object zo_gl, zo_list;
+	uuid zuuid_who;	
+	
+	zs_method = "z_chg_close_rel_pr";
+	zi_debug = 1;
+	zs_persistent_id = argv[3];	
+	zi_chgid = argv[6];
+	// zuuid_who = 64E5F4027B3F2441B770517FE1A27D23; //usuario servicedesk - 10.200.7.106
+	
+	if(zi_debug > 0){
+		logf(SIGNIFICANT, "============================================================="); 
+        logf(SIGNIFICANT, "%s Inicio - $s", zs_method, (string) now());
+        logf(SIGNIFICANT, "%s User - '%s'", zs_method, thread_userid());
+        logf(SIGNIFICANT, "%s ARG Count : %d", zs_method, argc);
+        for (zi = 0; zi < argc; zi += 1) {
+            logf(SIGNIFICANT, "%s ARG #%s : %s", zs_method, (string) zi, (string) argv[zi]);          
+        }
+        logf(SIGNIFICANT, "============================================================="); 
+	}
+		
+		//usuário atual
+		send_wait(0, top_object(), "call_attr", "cnt", "current_user_id");
+		zuuid_who = msg[0];
+		
+		// Instancia um objeto PR utilizando um persistent_id.
+		send_wait(0, top_object(), "call_attr", "chg", "dob_by_persid", 0, zs_persistent_id);
+		if (msg_error()) {
+			logf(SIGNIFICANT, "%s ERRO %d em dob_by_persid: %s", zs_method, msg_error(), msg[0]);
+			logf(ERROR, "%s ERRO %d em dob_by_persid: %s", zs_method, msg_error(), msg[0]);
+			return;
+		}
+		
+		if(zi_debug > 0)
+			logf(SIGNIFICANT, "Obtendo lista de objetos...\n");
+		
+		send_wait(0, top_object(), "call_attr", "api", "get_list", "pr", zuuid_who, format("change=%s", zi_chgid), -1);
+		zo_list = msg[0]; //lista de objetos
+		zi_list_count = (int) msg[1]; //tamanho da lista
+		
+		if(zi_debug > 0){
+			logf(SIGNIFICANT, "msg[0] = '%s'\n", (string) zo_list);
+			logf(SIGNIFICANT, "Obtendo itens da lista de objetos...(Instanciando)\n");
+			logf(SIGNIFICANT, "Tamanho da lista: %d\n", zi_list_count);
+		}
+		
+		for (zi = 0; zi < zi_list_count ; zi++) {
+			send_wait(0, zo_list, "dob_by_index", "DEFAULT", zi, zi);
+			object zo_in;
+			zo_in = msg[0];
+			
+			if(zi_debug > 0)
+				logf(SIGNIFICANT, "msg[%d] = '%s'\n", zi, (string) zo_in);
+		}
+		
+		send_wait(0, top_object(), "call_attr", "api", "get_list_values", zuuid_who, zo_list, 0, zi_list_count, 0, "ref_num");
+		
+		if(zi_debug > 0)
+			logf(SIGNIFICANT, "PERSIDs dos objetos da lista:\n");
+		
+		// para cada item da lista tem 3 atributos, quando se utilza o get_list_values, logo eh x3 o tamanho da nova lista.
+		zi_list_count = (zi_list_count * 3);
+		
+		for(zi = 0; zi < zi_list_count; zi+=3) {	
+			zs_persistent_id = (string) msg[zi];
+			z_change_status(zuuid_who, zs_persistent_id, zo_gl, "CL");
+			
+			if(zi_debug > 0)
+				logf(SIGNIFICANT, "Persid: msg[%d] = '%s'\n", zi, (string) msg[zi]);
+		}
+		
+		
+
+}
+
+
+
+
